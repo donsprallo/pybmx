@@ -1,0 +1,23 @@
+[project]
+name = "pybmx"
+version = "0.1.0"
+description = "Bosch sensor BMP and BME library"
+authors = [
+    {name = "Nico Hanisch", email = "donsprallo@gmail.com"},
+]
+dependencies = ["smbus2>=0.5.0", "pydantic>=2.10.6"]
+requires-python = ">=3.13"
+readme = "README.md"
+license = {text = "MIT"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+]
