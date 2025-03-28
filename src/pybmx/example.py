@@ -15,6 +15,7 @@ bme.info()
 bme.temperature_oversampling = pybmx.Bme280Oversampling.OVERSAMPLING_X1
 bme.humidity_oversampling = pybmx.Bme280Oversampling.OVERSAMPLING_X1
 bme.pressure_oversampling = pybmx.Bme280Oversampling.OVERSAMPLING_X1
+bme.duration = pybmx.Bme280Duration.DURATION_10
 
 # After the configuration, the sensor must be updated to apply the
 # new settings.
