@@ -2,29 +2,37 @@ import time
 
 import smbus2 as smbus
 
-from . import bme
-from . import calibration
-from . import enums
+import pybmx
 
-if __name__ == "__main__":
-    bus = smbus.SMBus(1)
-    calibrator = calibration.Bme280FloatCalibrator
-    # calibrator = calibration.Bme280S32Calibrator
-    bme = bme.Bme280(bus, calibrator_class=calibrator)
-    bme.info()
+# Create a new BME280 object. The current sensor configuration is
+# read from the sensor and can be printed.
+bus = smbus.SMBus(1)
+bme = pybmx.Bme280(bus)
+bme.info()
 
-    bme.duration = enums.Bme280Duration.DURATION_250
-    bme.temperature_oversampling = enums.Bme280Oversampling.OVERSAMPLING_X1
-    bme.humidity_oversampling = enums.Bme280Oversampling.OVERSAMPLING_X1
-    bme.pressure_oversampling = enums.Bme280Oversampling.OVERSAMPLING_X1
-    bme.update()
-    bme.info()
+# Configure the BME280 sensor. To enable all sensor functions, the
+# oversampling must be activated.
+bme.temperature_oversampling = pybmx.Bme280Oversampling.OVERSAMPLING_X1
+bme.humidity_oversampling = pybmx.Bme280Oversampling.OVERSAMPLING_X1
+bme.pressure_oversampling = pybmx.Bme280Oversampling.OVERSAMPLING_X1
 
-    try:
-        while True:
-            datapoint = bme.measure()
-            print(datapoint)
-            time.sleep(5.0)
-    except KeyboardInterrupt:
-        pass
+# After the configuration, the sensor must be updated to apply the
+# new settings.
+bme.update()
+bme.info()
+
+try:
+    while True:
+        # You can read the sensor data with the measure() method. The
+        # data contains the temperature, humidity and pressure values.
+        datapoint = bme.measure()
+        print(f"timestamp: {datapoint.timestamp}")
+        print(f"temperature: {datapoint.temperature} °C")
+        print(f"humidity: {datapoint.humidity} %")
+        print(f"pressure: {datapoint.pressure} hPa")
+
+        time.sleep(5.0)
+except KeyboardInterrupt:
+    pass
+finally:
     bus.close()

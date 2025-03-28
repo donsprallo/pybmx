@@ -2,6 +2,19 @@ import enum
 
 
 class Bme280Mode(enum.IntFlag):
+    """The BME280 power mode.
+
+    The sensor offers three modes:
+
+    - Sleep mode: The sensor is in sleep mode and no measurements are
+      performed. All registers are accessible. The sensor is in low power
+      mode. This mode is selected by default after power on.
+    - Forced mode: Perform a single measurement. Store the result in the
+      sensor registers and go back to sleep mode.
+    - Normal mode: The sensor is in normal mode. It performs cycles of
+      continuous measurements and inactive periods.
+    """
+
     SLEEP = 0
     FORCED = 1
     NORMAL = 3
