@@ -21,7 +21,7 @@ BME280_DEVICE_ADDRESSES = (0x77, 0x76)
 """Allowed device addresses."""
 
 
-class Bme280DataMap(ctypes.Structure):
+class Bme280DataRegisterMap(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
         ("_press_msb", ctypes.c_uint8),
@@ -56,7 +56,7 @@ class Bme280DataMap(ctypes.Structure):
         return value & 0xFFFFF  # 20 bit
 
 
-class Bme280Datapoint(pydantic.BaseModel):
+class BmeDatapoint(pydantic.BaseModel):
     """BmeDatapoint is a data transfer object for of a single measure. The
     temperature, humidity and pressure is calculated by sensor calibration
     values."""
@@ -198,25 +198,27 @@ class Bme280:
     @classmethod
     def _read_calibration(
         cls, bus: smbus.SMBus, addr: int
-    ) -> calibration.Bme280CalibrationMap:
+    ) -> calibration.Bme280CalibrationRegisterMap:
         """Read calibration from device."""
         buffer = bytearray()
         low_map_size = calibration.CALIB_LOW_SIZE
         high_map_size = calibration.CALIB_HIGH_SIZE
         buffer.extend(cls._read_block_data(bus, addr, 0x88, low_map_size))
         buffer.extend(cls._read_block_data(bus, addr, 0xE1, high_map_size))
-        return calibration.Bme280CalibrationMap.from_buffer(buffer, 0)
+        return calibration.Bme280CalibrationRegisterMap.from_buffer(buffer, 0)
 
     @classmethod
-    def _read_config(cls, bus: smbus.SMBus, addr: int) -> configuration.Bme280ConfigMap:
+    def _read_config(
+        cls, bus: smbus.SMBus, addr: int
+    ) -> configuration.Bme280ConfigRegisterMap:
         """Read configuration from device."""
-        configmap_size = ctypes.sizeof(configuration.Bme280ConfigMap)
+        configmap_size = ctypes.sizeof(configuration.Bme280ConfigRegisterMap)
         buffer = cls._read_block_data(bus, addr, 0xF2, configmap_size)
-        return configuration.Bme280ConfigMap.from_buffer(buffer, 0)
+        return configuration.Bme280ConfigRegisterMap.from_buffer(buffer, 0)
 
     @staticmethod
     def _write_config(
-        bus: smbus.SMBus, addr: int, config: configuration.Bme280ConfigMap
+        bus: smbus.SMBus, addr: int, config: configuration.Bme280ConfigRegisterMap
     ) -> None:
         # Follow write sequence: must write pairs of register address
         # and value. Note: write to 0xF2 only affects after write to 0xF5.
@@ -225,11 +227,11 @@ class Bme280:
         bus.write_i2c_block_data(addr, write_sequence[0], write_sequence[1:])
 
     @classmethod
-    def _read_data(cls, bus: smbus.SMBus, addr: int) -> Bme280DataMap:
+    def _read_data(cls, bus: smbus.SMBus, addr: int) -> Bme280DataRegisterMap:
         """Read data from device."""
-        datamap_size = ctypes.sizeof(Bme280DataMap)
-        buffer = cls._read_block_data(bus, addr, 0xF7, datamap_size)
-        return Bme280DataMap.from_buffer(buffer, 0)
+        register_map_size = ctypes.sizeof(Bme280DataRegisterMap)
+        buffer = cls._read_block_data(bus, addr, 0xF7, register_map_size)
+        return Bme280DataRegisterMap.from_buffer(buffer, 0)
 
     @staticmethod
     def _read_block_data(
@@ -265,7 +267,7 @@ class Bme280:
             case enums.Bme280Duration.DURATION_1000:
                 time.sleep(1.0)
 
-    def measure(self) -> Bme280Datapoint:
+    def measure(self) -> BmeDatapoint:
         # Create timestamp here, because we trigger conversion as soon
         # as possible. The read data is buffered until next conversion
         # is started.
@@ -287,7 +289,7 @@ class Bme280:
         humidity = calibrator.humidity(data.humidity, fine)
         # Return data transfer object with timestamp and
         # previously calculated real data.
-        return Bme280Datapoint(
+        return BmeDatapoint(
             timestamp=now, temperature=temperature, humidity=humidity, pressure=pressure
         )
 

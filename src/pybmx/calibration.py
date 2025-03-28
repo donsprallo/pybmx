@@ -5,7 +5,7 @@ CALIB_LOW_SIZE = 25
 CALIB_HIGH_SIZE = 7
 
 
-class Bme280CalibrationMap(ctypes.Structure):
+class Bme280CalibrationRegisterMap(ctypes.Structure):
     _fields_ = [
         # Read only: 0x88 ... 0xA1
         ("calib_low", ctypes.c_ubyte * CALIB_LOW_SIZE),
@@ -108,6 +108,9 @@ class Bme280CalibrationMap(ctypes.Structure):
 
 class Bme280Calibrator(abc.ABC):
 
+    def __init__(self, calibration: Bme280CalibrationRegisterMap):
+        self._calibration = calibration
+
     @abc.abstractmethod
     def temperature(self, adc: int) -> tuple[float, float]:
         raise NotImplementedError
@@ -122,9 +125,6 @@ class Bme280Calibrator(abc.ABC):
 
 
 class Bme280S32Calibrator(Bme280Calibrator):
-
-    def __init__(self, calibration: Bme280CalibrationMap):
-        self._calibration = calibration
 
     def temperature(self, adc: int) -> tuple[float, float]:
         dig_T1 = self._calibration.dig_T1
@@ -197,9 +197,6 @@ class Bme280S32Calibrator(Bme280Calibrator):
 
 
 class Bme280FloatCalibrator(Bme280Calibrator):
-
-    def __init__(self, calibration: Bme280CalibrationMap):
-        self._calibration = calibration
 
     def temperature(self, adc: int) -> tuple[float, float]:
         adc = float(adc)

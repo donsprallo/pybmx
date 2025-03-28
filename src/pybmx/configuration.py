@@ -3,7 +3,7 @@ import ctypes
 from . import enums
 
 
-class Bme280ConfigMap(ctypes.Structure):
+class Bme280ConfigRegisterMap(ctypes.Structure):
     _pack_ = 1
     _fields_ = [
         # Read / write: 0xF2
