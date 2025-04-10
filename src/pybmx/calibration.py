@@ -1,154 +1,125 @@
 import abc
 import ctypes
+import typing as t
+import smbus2 as smbus
+import dataclasses
 
-CALIB_LOW_SIZE = 25
-CALIB_HIGH_SIZE = 7
+U8: t.TypeAlias = ctypes.c_uint8
+S8: t.TypeAlias = ctypes.c_int8
+S16: t.TypeAlias = ctypes.c_int16
+U16: t.TypeAlias = ctypes.c_uint16
+S32: t.TypeAlias = ctypes.c_int32
+U32: t.TypeAlias = ctypes.c_uint32
 
 
-class Bme280CalibrationRegisterMap(ctypes.Structure):
-    _fields_ = [
-        # Read only: 0x88 ... 0xA1
-        ("calib_low", ctypes.c_ubyte * CALIB_LOW_SIZE),
-        # Read only: 0xE1 ... 0xF9
-        ("calib_high", ctypes.c_ubyte * CALIB_HIGH_SIZE),
-    ]
+class Reader:
+    """Wrap an I2C bus instance to provide a common interface for
+    reading from the bus."""
 
-    @property
-    def dig_T1(self) -> int:
-        data = bytes(self.calib_low[0:2])
-        return int.from_bytes(data, "little")
+    def __init__(self, bus: smbus.SMBus, address: int):
+        self._bus = bus
+        self._address = address
 
-    @property
-    def dig_T2(self) -> int:
-        data = bytes(self.calib_low[2:4])
-        return int.from_bytes(data, "little", signed=True)
+    def u16(self, register: int) -> U16:
+        """Read a 16-bit unsigned integer from the bus."""
+        data = self._bus.read_word_data(self._address, register)
+        print(f"Register: {register:#04x}, Data: {data:#06x}")
+        return U16(data)
 
-    @property
-    def dig_T3(self) -> int:
-        data = bytes(self.calib_low[4:6])
-        return int.from_bytes(data, "little", signed=True)
+    def s16(self, register: int) -> S16:
+        """Read a 16-bit signed integer from the bus."""
+        data = self._bus.read_word_data(self._address, register)
+        print(f"Register: {register:#04x}, Data: {data:#06x}")
+        return S16(data)
 
-    @property
-    def dig_P1(self) -> int:
-        data = bytes(self.calib_low[6:8])
-        return int.from_bytes(data, "little")
+    def u8(self, register: int) -> U8:
+        """Read an 8-bit unsigned integer from the bus."""
+        data = self._bus.read_byte_data(self._address, register)
+        print(f"Register: {register:#04x}, Data: {data:#04x}")
+        return U8(data)
 
-    @property
-    def dig_P2(self) -> int:
-        data = bytes(self.calib_low[8:10])
-        return int.from_bytes(data, "little", signed=True)
+    def s8(self, register: int) -> S8:
+        """Read an 8-bit signed integer from the bus."""
+        data = self._bus.read_byte_data(self._address, register)
+        print(f"Register: {register:#04x}, Data: {data:#04x}")
+        return S8(data)
 
-    @property
-    def dig_P3(self) -> int:
-        data = bytes(self.calib_low[10:12])
-        return int.from_bytes(data, "little", signed=True)
 
-    @property
-    def dig_P4(self) -> int:
-        data = bytes(self.calib_low[12:14])
-        return int.from_bytes(data, "little", signed=True)
-
-    @property
-    def dig_P5(self) -> int:
-        data = bytes(self.calib_low[14:16])
-        return int.from_bytes(data, "little", signed=True)
-
-    @property
-    def dig_P6(self) -> int:
-        data = bytes(self.calib_low[16:18])
-        return int.from_bytes(data, "little", signed=True)
-
-    @property
-    def dig_P7(self) -> int:
-        data = bytes(self.calib_low[18:20])
-        return int.from_bytes(data, "little", signed=True)
-
-    @property
-    def dig_P8(self) -> int:
-        data = bytes(self.calib_low[20:22])
-        return int.from_bytes(data, "little", signed=True)
-
-    @property
-    def dig_P9(self) -> int:
-        data = bytes(self.calib_low[22:24])
-        return int.from_bytes(data, "little", signed=True)
-
-    @property
-    def dig_H1(self) -> int:
-        data = bytes(self.calib_low[24])
-        return int.from_bytes(data)
-
-    @property
-    def dig_H2(self) -> int:
-        data = bytes(self.calib_high[0:2])
-        return int.from_bytes(data, "little", signed=True)
-
-    @property
-    def dig_H3(self) -> int:
-        data = bytes(self.calib_high[2])
-        return int.from_bytes(data)
-
-    @property
-    def dig_H4(self) -> int:
-        hi_nibble = self.calib_high[3] << 4
-        lo_nibble = self.calib_high[4] & 0x0F
-        return int(lo_nibble | hi_nibble)
-
-    @property
-    def dig_H5(self) -> int:
-        lo_nibble = (self.calib_high[4] & 0xF0) >> 4
-        hi_nibble = self.calib_high[5] << 4
-        return int(lo_nibble | hi_nibble)
-
-    @property
-    def dig_H6(self) -> int:
-        data = bytes(self.calib_high[6])
-        return int.from_bytes(data, signed=True)
+@dataclasses.dataclass
+class Bme280Calibration:
+    dig_T1: U16
+    dig_T2: S16
+    dig_T3: S16
+    dig_P1: U16
+    dig_P2: S16
+    dig_P3: S16
+    dig_P4: S16
+    dig_P5: S16
+    dig_P6: S16
+    dig_P7: S16
+    dig_P8: S16
+    dig_P9: S16
+    dig_H1: U8
+    dig_H2: S16
+    dig_H3: U8
+    dig_H4: S16
+    dig_H5: S16
+    dig_H6: S8
 
 
 class Bme280Calibrator(abc.ABC):
 
-    def __init__(self, calibration: Bme280CalibrationRegisterMap):
+    def __init__(self, calibration: Bme280Calibration):
         self._calibration = calibration
 
     @abc.abstractmethod
-    def temperature(self, adc: int) -> tuple[float, float]:
+    def fine(self, adc: S32) -> float:
+        """Get the fine temperature value."""
         raise NotImplementedError
 
     @abc.abstractmethod
-    def pressure(self, adc: int, fine: float) -> float:
+    def temperature(self, adc: S32) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def humidity(self, adc: int, fine: float) -> float:
+    def pressure(self, adc: S32, fine: S32) -> float:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def humidity(self, adc: S32, fine: S32) -> float:
         raise NotImplementedError
 
 
 class Bme280S32Calibrator(Bme280Calibrator):
 
-    def temperature(self, adc: int) -> tuple[float, float]:
-        dig_T1 = self._calibration.dig_T1
-        dig_T2 = self._calibration.dig_T2
-        dig_T3 = self._calibration.dig_T3
+    def temperature(self, adc: S32) -> float:
+        fine = self.fine(adc).value
+        adc_val = adc.value
 
-        var1 = (adc >> 3) - (dig_T1 << 1)
-        var2 = dig_T2 >> 11
-        var3 = (adc >> 4) - dig_T1
-        var4 = (adc >> 4) - (dig_T3 >> 12)
-        var5 = dig_T3 >> 14
-        fine = (var1 * var2) + (var3 * var4 * var5)
+        dig_T1 = self._calibration.dig_T1.value
+        dig_T2 = self._calibration.dig_T2.value
+        dig_T3 = self._calibration.dig_T3.value
+
+        var1 = (adc_val >> 4) - dig_T1
+        var2 = ((((adc_val >> 3) - (dig_T1 << 1))) * dig_T2) >> 11
+        var3 = (((var1 * var1) >> 12) * dig_T3) >> 14
+
+        fine = var2 + var3
         return fine, ((fine * 5 + 128) >> 8) / 100.0
 
-    def pressure(self, adc: int, fine: float) -> float:
-        dig_P1 = self._calibration.dig_P1
-        dig_P2 = self._calibration.dig_P2
-        dig_P3 = self._calibration.dig_P3
-        dig_P4 = self._calibration.dig_P4
-        dig_P5 = self._calibration.dig_P5
-        dig_P6 = self._calibration.dig_P6
-        dig_P7 = self._calibration.dig_P7
-        dig_P8 = self._calibration.dig_P8
-        dig_P9 = self._calibration.dig_P9
+    def pressure(self, adc: S32) -> float:
+        fine = self.fine(adc).value
+        adc = adc.value
+
+        dig_P1 = self._calibration.dig_P1.value
+        dig_P2 = self._calibration.dig_P2.value
+        dig_P3 = self._calibration.dig_P3.value
+        dig_P4 = self._calibration.dig_P4.value
+        dig_P5 = self._calibration.dig_P5.value
+        dig_P6 = self._calibration.dig_P6.value
+        dig_P7 = self._calibration.dig_P7.value
+        dig_P8 = self._calibration.dig_P8.value
+        dig_P9 = self._calibration.dig_P9.value
 
         var1 = fine - 128000
         var2 = var1 * var1 * dig_P6
@@ -169,13 +140,16 @@ class Bme280S32Calibrator(Bme280Calibrator):
         # Convert Q24.8 to float.
         return p / 256
 
-    def humidity(self, adc: int, fine: float) -> float:
-        dig_H1 = self._calibration.dig_H1
-        dig_H2 = self._calibration.dig_H2
-        dig_H3 = self._calibration.dig_H3
-        dig_H4 = self._calibration.dig_H4
-        dig_H5 = self._calibration.dig_H5
-        dig_H6 = self._calibration.dig_H6
+    def humidity(self, adc: S32) -> float:
+        fine = self.fine(adc).value
+        adc = adc.value
+
+        dig_H1 = self._calibration.dig_H1.value
+        dig_H2 = self._calibration.dig_H2.value
+        dig_H3 = self._calibration.dig_H3.value
+        dig_H4 = self._calibration.dig_H4.value
+        dig_H5 = self._calibration.dig_H5.value
+        dig_H6 = self._calibration.dig_H6.value
 
         v_x1_u32r = fine - 76800
 
@@ -196,74 +170,72 @@ class Bme280S32Calibrator(Bme280Calibrator):
         return (v_x1_u32r >> 12) / 1024
 
 
-class Bme280FloatCalibrator(Bme280Calibrator):
+class Bme280FCalibrator(Bme280Calibrator):
 
-    def temperature(self, adc: int) -> tuple[float, float]:
-        adc = float(adc)
+    def fine(self, adc: S32) -> float:
+        adc = float(adc.value)
 
-        dig_T1 = self._calibration.dig_T1
-        dig_T2 = self._calibration.dig_T2
-        dig_T3 = self._calibration.dig_T3
+        dig_T1 = self._calibration.dig_T1.value
+        dig_T2 = self._calibration.dig_T2.value
+        dig_T3 = self._calibration.dig_T3.value
 
-        var2 = adc / 131072.0
-        var4 = dig_T1 / 8192.0
+        var1 = (adc / 16384.0 - dig_T1 / 1024.0) * dig_T2
+        var2 = ((adc / 131072.0 - dig_T1 / 8192.0) ** 2) * dig_T3
 
-        var5 = (adc / 16384.0 - dig_T1 / 1024.0) * dig_T2
-        var6 = (var2 - var4) * (var2 - var4) * dig_T3
+        return var1 + var2
 
-        fine = int(var5 + var6)
-        temp = (var5 + var6) / 5120.0
-        return fine, temp
+    def temperature(self, adc: S32) -> float:
+        fine = self.fine(adc)
+        return fine / 5120.0
 
-    def pressure(self, adc: int, fine: float) -> float:
-        adc = float(adc)
+    def pressure(self, adc: S32) -> float:
+        fine = self.fine(adc)
+        adc = float(adc.value)
 
-        dig_P1 = self._calibration.dig_P1
-        dig_P2 = self._calibration.dig_P2
-        dig_P3 = self._calibration.dig_P3
-        dig_P4 = self._calibration.dig_P4
-        dig_P5 = self._calibration.dig_P5
-        dig_P6 = self._calibration.dig_P6
-        dig_P7 = self._calibration.dig_P7
-        dig_P8 = self._calibration.dig_P8
-        dig_P9 = self._calibration.dig_P9
+        dig_P1 = self._calibration.dig_P1.value
+        dig_P2 = self._calibration.dig_P2.value
+        dig_P3 = self._calibration.dig_P3.value
+        dig_P4 = self._calibration.dig_P4.value
+        dig_P5 = self._calibration.dig_P5.value
+        dig_P6 = self._calibration.dig_P6.value
+        dig_P7 = self._calibration.dig_P7.value
+        dig_P8 = self._calibration.dig_P8.value
+        dig_P9 = self._calibration.dig_P9.value
 
-        var1 = (fine / 2) - 64000
-        var2 = var1 * var1 * dig_P6 / 32768
-        var2 += (var1 * dig_P5 * 2) / 4
-        var2 += dig_P4 * 65536
-        var3 = dig_P3 * var1 * var1 / 524288
-        var1 = (var3 + (dig_P2 * var1)) / 524288
-        var1 = (1 + var1 / 32768) * dig_P1
+        var1 = (fine / 2.0) - 64000.0
+        var2 = var1 * var1 * dig_P6 / 32768.0
+        var2 = var2 + var1 * dig_P5 * 2.0
+        var2 = var2 / 4.0 + dig_P4 * 65536.0
+        var3 = dig_P3 * var1 * var1 / 524288.0
+        var1 = (var3 + dig_P2 * var1) / 524288.0
+        var1 = (1.0 + var1 / 32768.0) * dig_P1
+
         if var1 == 0:
             return 0.0
-        p = 1048576 - adc
-        p = p - (var2 / 4096) * 6250 / var1
-        var1 = dig_P9 * p * p / 2147483648
-        var2 = p * dig_P8 / 32768
-        p += var1 + var2 + dig_P7
 
-        return p / 16
+        p = 1048576.0 - adc
+        p = (p - (var2 / 4096.0)) * 6250.0 / var1
+        var1 = dig_P9 * p * p / 2147483648.0
+        var2 = p * dig_P8 / 32768.0
+        return (p + var1 + var2 + dig_P7) / 16.0
 
-    def humidity(self, adc: int, fine: float) -> float:
-        adc = float(adc)
+    def humidity(self, adc: S32) -> float:
+        fine = self.fine(adc)
+        adc = float(adc.value)
 
-        dig_H1 = self._calibration.dig_H1
-        dig_H2 = self._calibration.dig_H2
-        dig_H3 = self._calibration.dig_H3
-        dig_H4 = self._calibration.dig_H4
-        dig_H5 = self._calibration.dig_H5
-        dig_H6 = self._calibration.dig_H6
+        dig_H1 = self._calibration.dig_H1.value
+        dig_H2 = self._calibration.dig_H2.value
+        dig_H3 = self._calibration.dig_H3.value
+        dig_H4 = self._calibration.dig_H4.value
+        dig_H5 = self._calibration.dig_H5.value
+        dig_H6 = self._calibration.dig_H6.value
 
-        var1 = fine - 76800
-        x = adc - (dig_H4 * 64 + dig_H5 / 16384 * var1)
-        b = 1 + dig_H3 / 67108864 * var1
-        z = dig_H2 / 65536 * (1 + dig_H6 / 67108864 * var1 * b)
+        var1 = fine - 76800.0
+        x = adc - (dig_H4 * 64.0 + dig_H5 / 16384.0 * var1)
+        b = 1.0 + dig_H3 / 67108864.0 * var1
+        z = dig_H2 / 65536.0 * (1.0 + dig_H6 / 67108864.0 * var1 * b)
 
         var2 = x * z
-        var1 = var2 * (1 - dig_H1 * var2 / 524288)
+        var1 = var2 * (1.0 - (dig_H1 * var2 / 524288.0))
 
-        var1 = min(var1, 100)
-        var1 = max(var1, 0)
-
-        return var1
+        return max(0.0, min(var1, 100.0))

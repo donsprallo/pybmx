@@ -7,7 +7,7 @@ import pybmx
 # Create a new BME280 object. The current sensor configuration is
 # read from the sensor and can be printed.
 bus = smbus.SMBus(1)
-bme = pybmx.Bme280(bus)
+bme = pybmx.Bme280(bus, calibrator_class=pybmx.Bme280FCalibrator)
 bme.info()
 
 # Configure the BME280 sensor. To enable all sensor functions, the
@@ -27,6 +27,7 @@ try:
         # You can read the sensor data with the measure() method. The
         # data contains the temperature, humidity and pressure values.
         datapoint = bme.measure()
+        print("-" * 20)
         print(f"timestamp: {datapoint.timestamp}")
         print(f"temperature: {datapoint.temperature} °C")
         print(f"humidity: {datapoint.humidity} %")
