@@ -39,10 +39,11 @@ try:
         # You can read the sensor data with the measure() method. The
         # data contains the temperature, humidity and pressure values.
         datapoint = bme.measure()
+        print("-" * 20)
         print(f"timestamp: {datapoint.timestamp}")
-        print(f"temperature: {datapoint.temperature} °C")
-        print(f"humidity: {datapoint.humidity} %")
-        print(f"pressure: {datapoint.pressure} hPa")
+        print(f"temperature: {datapoint.temperature:.3f} °C")
+        print(f"humidity: {datapoint.humidity:.3f} %rH")
+        print(f"pressure: {datapoint.pressure:.3f} hPa")
 
         time.sleep(5.0)
 except KeyboardInterrupt:
