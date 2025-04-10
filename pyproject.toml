@@ -28,6 +28,10 @@ build-backend = "pdm.backend"
 [tool.pdm]
 distribution = true
 
+[tool.black]
+line-length = 80
+skip-string-normalization = true
+
 [dependency-groups]
 dev = [
     "black>=25.1.0",

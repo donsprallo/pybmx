@@ -214,10 +214,11 @@ class Bme280FCalibrator(Bme280Calibrator):
             return 0.0
 
         p = 1048576.0 - adc
-        p = (p - (var2 / 4096.0)) * 6250.0 / var1
+        p = ((p - var2 / 4096.0)) * 6250.0 / var1
         var1 = dig_P9 * p * p / 2147483648.0
         var2 = p * dig_P8 / 32768.0
-        return (p + var1 + var2 + dig_P7) / 16.0
+        p = p + (var1 + var2 + dig_P7) / 16.0
+        return p / 100.0
 
     def humidity(self, adc: S32) -> float:
         fine = self.fine(adc)
@@ -231,11 +232,10 @@ class Bme280FCalibrator(Bme280Calibrator):
         dig_H6 = self._calibration.dig_H6.value
 
         var1 = fine - 76800.0
-        x = adc - (dig_H4 * 64.0 + dig_H5 / 16384.0 * var1)
-        b = 1.0 + dig_H3 / 67108864.0 * var1
-        z = dig_H2 / 65536.0 * (1.0 + dig_H6 / 67108864.0 * var1 * b)
-
-        var2 = x * z
-        var1 = var2 * (1.0 - (dig_H1 * var2 / 524288.0))
+        var2 = dig_H4 * 64.0 + dig_H5 / 16384.0 * var1
+        var3 = 1.0 + dig_H3 / 67108864.0 * var1
+        var4 = 1.0 + dig_H6 / 67108864.0 * var1 * var3
+        var1 = (adc - var2) * (dig_H2 / 65536.0 * var4)
+        var1 = var1 * (1.0 - (dig_H1 * var1 / 524288.0))
 
         return max(0.0, min(var1, 100.0))

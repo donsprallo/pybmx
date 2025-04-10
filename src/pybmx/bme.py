@@ -80,7 +80,7 @@ class Bme280:
         addr: int = 0x76,
         calibrator_class: t.Type[
             calibration.Bme280Calibrator
-        ] = calibration.Bme280S32Calibrator,
+        ] = calibration.Bme280F32Calibrator,
     ):
         """Create a BME280 sensor class.
 
