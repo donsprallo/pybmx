@@ -2,15 +2,14 @@ import ctypes
 import datetime
 import time
 import typing as t
-
-import pydantic
+import dataclasses
 import smbus2 as smbus
 
 from . import calibration
 from . import configuration
 from . import enums
 from . import utils
-from . import reader as r
+from . import io
 from . import types
 from . import calibration
 
@@ -59,7 +58,8 @@ class Bme280DataRegisterMap(ctypes.Structure):
         return types.S32(value & 0xFFFFF)  # 20 bit
 
 
-class BmeDatapoint(pydantic.BaseModel):
+@dataclasses.dataclass(frozen=True)
+class BmeDatapoint:
     """BmeDatapoint is a data transfer object for of a single measure. The
     temperature, humidity and pressure is calculated by sensor calibration
     values."""
@@ -102,7 +102,7 @@ class Bme280:
         if self._id != BME280_DEVICE_ID:
             raise ValueError("unknown device")
 
-        self._calibration = calibration.read(r.Reader(bus, addr))
+        self._calibration = calibration.read(io.Reader(bus, addr))
         self._config = self._read_config(self._bus, self._addr)
 
     def reset(self) -> None:
@@ -204,16 +204,20 @@ class Bme280:
     ) -> configuration.Bme280ConfigRegisterMap:
         """Read configuration from device."""
         configmap_size = ctypes.sizeof(configuration.Bme280ConfigRegisterMap)
-        buffer = cls._read_block_data(bus, addr, 0xF2, configmap_size)
+        buffer = bytearray(bus.read_i2c_block_data(addr, 0xF2, configmap_size))
         return configuration.Bme280ConfigRegisterMap.from_buffer(buffer, 0)
 
     @staticmethod
     def _write_config(
-        bus: smbus.SMBus, addr: int, config: configuration.Bme280ConfigRegisterMap
+        bus: smbus.SMBus,
+        addr: int,
+        config: configuration.Bme280ConfigRegisterMap,
     ) -> None:
         # Follow write sequence: must write pairs of register address
         # and value. Note: write to 0xF2 only affects after write to 0xF5.
-        write_sequence = bytes(utils.gen_write_sequence(config.to_bytes(), addr=0xF2))
+        write_sequence = bytes(
+            utils.gen_write_sequence(config.to_bytes(), addr=0xF2)
+        )
         # First byte of write_sequence is the start register address.
         bus.write_i2c_block_data(addr, write_sequence[0], write_sequence[1:])
 
@@ -221,22 +225,10 @@ class Bme280:
     def _read_data(cls, bus: smbus.SMBus, addr: int) -> Bme280DataRegisterMap:
         """Read data from device."""
         register_map_size = ctypes.sizeof(Bme280DataRegisterMap)
-        buffer = cls._read_block_data(bus, addr, 0xF7, register_map_size)
+        buffer = bytearray(
+            bus.read_i2c_block_data(addr, 0xF7, register_map_size)
+        )
         return Bme280DataRegisterMap.from_buffer(buffer, 0)
-
-    @staticmethod
-    def _read_block_data(
-        bus: smbus.SMBus, addr: int, register: int, length: int
-    ) -> bytearray:
-        # TODO: read chunks and add to buffer.
-        buffer = bytearray()
-        iterator = utils.chunk_iterator(length, I2C_SMBUS_BLOCK_MAX)
-        for chunk_start, chunk_size in iterator:
-            register_addr = register + chunk_start
-            data_block = bus.read_i2c_block_data(addr, register_addr, chunk_size)
-            buffer.extend(data_block)
-        # print(utils.hex_dump(buffer, width=16, addr=register))
-        return buffer
 
     @staticmethod
     def _sleep(duration: enums.Bme280Duration) -> None:
@@ -281,7 +273,10 @@ class Bme280:
         # Return data transfer object with timestamp and
         # previously calculated real data.
         return BmeDatapoint(
-            timestamp=now, temperature=temperature, humidity=humidity, pressure=pressure
+            timestamp=now,
+            temperature=temperature,
+            humidity=humidity,
+            pressure=pressure,
         )
 
     def info(self, writer=print) -> None:

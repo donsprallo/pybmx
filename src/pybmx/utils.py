@@ -1,15 +1,6 @@
 import typing as t
 
 
-def chunk_iterator(size: int, chunk_size: int):
-    chunk_start = 0
-    while size > 0:
-        chunk_length = min(size, chunk_size)
-        yield chunk_start, chunk_length
-        chunk_start += chunk_length
-        size -= chunk_length
-
-
 def gen_write_sequence(data: bytes, addr: int) -> t.Generator[int, None, None]:
     """Generate a write byte sequence for a bme sensor."""
     for byte in data:

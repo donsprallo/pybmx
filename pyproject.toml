@@ -5,7 +5,7 @@ description = "Bosch sensor BMP and BME library"
 authors = [
     { name = "Nico Hanisch", email = "donsprallo@gmail.com" },
 ]
-dependencies = ["smbus2>=0.5.0", "pydantic>=2.10.6"]
+dependencies = ["smbus2>=0.5.0", "loguru>=0.7.3"]
 requires-python = ">=3.10"
 readme = "README.md"
 license = "MIT"

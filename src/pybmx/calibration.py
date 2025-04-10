@@ -2,10 +2,10 @@ import abc
 import dataclasses
 
 from . import types
-from . import reader as r
+from . import io
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Bme280Calibration:
     """A dataclass to hold the calibration data for the BME280 sensor."""
 
@@ -29,7 +29,7 @@ class Bme280Calibration:
     dig_H6: types.S8
 
 
-def read(reader: r.Reader) -> Bme280Calibration:
+def read(reader: io.Reader) -> Bme280Calibration:
     """Read calibration from data from reader."""
     e4 = reader.read_s8(0xE4).value
     e5 = reader.read_s8(0xE5).value
@@ -118,23 +118,25 @@ class Bme280S32Calibrator(Bme280Calibrator):
     implements the calibration calculations using 32-bit signed
     integers for the ADC values."""
 
-    def temperature(self, adc: types.S32) -> float:
-        fine = self.fine(adc).value
-        adc_val = adc.value
+    def fine(self, adc: types.S32) -> float:
+        adc = adc.value
 
         dig_T1 = self._calibration.dig_T1.value
         dig_T2 = self._calibration.dig_T2.value
         dig_T3 = self._calibration.dig_T3.value
 
-        var1 = (adc_val >> 4) - dig_T1
-        var2 = ((((adc_val >> 3) - (dig_T1 << 1))) * dig_T2) >> 11
+        var1 = (adc >> 4) - dig_T1
+        var2 = ((((adc >> 3) - (dig_T1 << 1))) * dig_T2) >> 11
         var3 = (((var1 * var1) >> 12) * dig_T3) >> 14
 
-        fine = var2 + var3
-        return fine, ((fine * 5 + 128) >> 8) / 100.0
+        return var2 + var3
+
+    def temperature(self, adc: types.S32) -> float:
+        fine = types.S32(self.fine(adc)).value
+        return ((fine * 5 + 128) >> 8) / 100.0
 
     def pressure(self, adc: types.S32) -> float:
-        fine = self.fine(adc).value
+        fine = types.S32(self.fine(adc)).value
         adc = adc.value
 
         dig_P1 = self._calibration.dig_P1.value
@@ -155,19 +157,22 @@ class Bme280S32Calibrator(Bme280Calibrator):
         var4 = var1 * (dig_P2 << 12)
         var1 = var3 + var4
         var1 = ((1 << 47) + var1) * dig_P1 >> 33
+
         # Avoid division by zero.
         if var1 == 0:
             return 0.0
+
         p = 1048576 - adc
         p = (((p << 31) - var2) * 3125) // var1
         var1 = (dig_P9 * ((p >> 13) ** 2)) >> 25
         var2 = (dig_P8 * p) >> 19
         p = ((p + var1 + var2) >> 8) + (dig_P7 << 4)
         # Convert Q24.8 to float.
-        return p / 256
+        p = p / 265
+        return p / 100.0
 
     def humidity(self, adc: types.S32) -> float:
-        fine = self.fine(adc).value
+        fine = types.S32(self.fine(adc)).value
         adc = adc.value
 
         dig_H1 = self._calibration.dig_H1.value
@@ -189,9 +194,8 @@ class Bme280S32Calibrator(Bme280Calibrator):
 
         var7 = ((v_x1_u32r >> 15) * (v_x1_u32r >> 15)) >> 7
         v_x1_u32r -= var7 * (dig_H1 >> 4)
+        v_x1_u32r = max(0, min(v_x1_u32r, 419430400))
 
-        v_x1_u32r = max(v_x1_u32r, 0)
-        v_x1_u32r = min(v_x1_u32r, 419430400)
         # Convert Q22.10 to float.
         return (v_x1_u32r >> 12) / 1024
 
@@ -239,6 +243,7 @@ class Bme280FCalibrator(Bme280Calibrator):
         var1 = (var3 + dig_P2 * var1) / 524288.0
         var1 = (1.0 + var1 / 32768.0) * dig_P1
 
+        # Avoid division by zero.
         if var1 == 0:
             return 0.0
 
