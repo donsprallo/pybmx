@@ -36,3 +36,9 @@ class Reader:
         data = self._bus.read_byte_data(self._address, register)
         logger.debug(f"Register: {register:#04x}, Data: {data:#04x}")
         return types.S8(data)
+
+    def read_bytes(self, register: int, length: int) -> bytes:
+        """Read a number of bytes from the bus."""
+        data = self._bus.read_i2c_block_data(self._address, register, length)
+        logger.debug(f"Register: {register:#04x}, Data: {data}")
+        return bytes(data)

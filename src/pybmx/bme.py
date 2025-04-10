@@ -196,7 +196,7 @@ class Bme280:
 
     @staticmethod
     def _read_id(bus: smbus.SMBus, addr: int) -> int:
-        return int.from_bytes(bus.read_i2c_block_data(addr, 0xD0, 1))
+        return io.Reader(bus, addr).read_u8(0xD0).value
 
     @classmethod
     def _read_config(
@@ -204,8 +204,10 @@ class Bme280:
     ) -> configuration.Bme280ConfigRegisterMap:
         """Read configuration from device."""
         configmap_size = ctypes.sizeof(configuration.Bme280ConfigRegisterMap)
-        buffer = bytearray(bus.read_i2c_block_data(addr, 0xF2, configmap_size))
-        return configuration.Bme280ConfigRegisterMap.from_buffer(buffer, 0)
+        buffer = io.Reader(bus, addr).read_bytes(0xF2, configmap_size)
+        return configuration.Bme280ConfigRegisterMap.from_buffer(
+            bytearray(buffer), 0
+        )
 
     @staticmethod
     def _write_config(
@@ -225,10 +227,8 @@ class Bme280:
     def _read_data(cls, bus: smbus.SMBus, addr: int) -> Bme280DataRegisterMap:
         """Read data from device."""
         register_map_size = ctypes.sizeof(Bme280DataRegisterMap)
-        buffer = bytearray(
-            bus.read_i2c_block_data(addr, 0xF7, register_map_size)
-        )
-        return Bme280DataRegisterMap.from_buffer(buffer, 0)
+        buffer = io.Reader(bus, addr).read_bytes(0xF7, register_map_size)
+        return Bme280DataRegisterMap.from_buffer(bytearray(buffer), 0)
 
     @staticmethod
     def _sleep(duration: enums.Bme280Duration) -> None:
