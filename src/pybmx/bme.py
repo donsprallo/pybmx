@@ -10,6 +10,9 @@ from . import calibration
 from . import configuration
 from . import enums
 from . import utils
+from . import reader as r
+from . import types
+from . import calibration
 
 I2C_SMBUS_BLOCK_MAX = 32
 """Maximum size of readable data bytes per read."""
@@ -19,11 +22,6 @@ BME280_DEVICE_ID = 0x60
 
 BME280_DEVICE_ADDRESSES = (0x77, 0x76)
 """Allowed device addresses."""
-
-BME280_S16: t.TypeAlias = ctypes.c_int16
-BME280_U16: t.TypeAlias = ctypes.c_uint16
-BME280_S32: t.TypeAlias = ctypes.c_int32
-BME280_U32: t.TypeAlias = ctypes.c_uint32
 
 
 class Bme280DataRegisterMap(ctypes.Structure):
@@ -40,25 +38,25 @@ class Bme280DataRegisterMap(ctypes.Structure):
     ]
 
     @property
-    def humidity(self) -> BME280_S32:
+    def humidity(self) -> types.S32:
         """The raw humidity value"""
-        return BME280_S32(self._hum_msb << 8 | self._hum_lsb)
+        return types.S32(self._hum_msb << 8 | self._hum_lsb)
 
     @property
-    def temperature(self) -> BME280_S32:
+    def temperature(self) -> types.S32:
         """The raw temperature value."""
         value = self._temp_xlsb >> 4
         value |= self._temp_lsb << 4
         value |= self._temp_msb << 12
-        return BME280_S32(value & 0xFFFFF)  # 20 bit
+        return types.S32(value & 0xFFFFF)  # 20 bit
 
     @property
-    def pressure(self) -> BME280_S32:
+    def pressure(self) -> types.S32:
         """The raw pressure value."""
         value = self._press_xlsb >> 4
         value |= self._press_lsb << 4
         value |= self._press_msb << 12
-        return BME280_S32(value & 0xFFFFF)  # 20 bit
+        return types.S32(value & 0xFFFFF)  # 20 bit
 
 
 class BmeDatapoint(pydantic.BaseModel):
@@ -104,7 +102,7 @@ class Bme280:
         if self._id != BME280_DEVICE_ID:
             raise ValueError("unknown device")
 
-        self._calibration = self._read_calibration(calibration.Reader(bus, addr))
+        self._calibration = calibration.read(r.Reader(bus, addr))
         self._config = self._read_config(self._bus, self._addr)
 
     def reset(self) -> None:
@@ -199,38 +197,6 @@ class Bme280:
     @staticmethod
     def _read_id(bus: smbus.SMBus, addr: int) -> int:
         return int.from_bytes(bus.read_i2c_block_data(addr, 0xD0, 1))
-
-    @classmethod
-    def _read_calibration(
-        cls, reader: calibration.Reader
-    ) -> calibration.Bme280Calibration:
-        """Read calibration from device."""
-        e4 = reader.s8(0xE4).value
-        e5 = reader.s8(0xE5).value
-        e6 = reader.s8(0xE7).value
-        return calibration.Bme280Calibration(
-            # Read temperature calibration values.
-            dig_T1=reader.u16(0x88),
-            dig_T2=reader.s16(0x8A),
-            dig_T3=reader.s16(0x8C),
-            # Read pressure calibration values.
-            dig_P1=reader.u16(0x8E),
-            dig_P2=reader.s16(0x90),
-            dig_P3=reader.s16(0x92),
-            dig_P4=reader.s16(0x94),
-            dig_P5=reader.s16(0x96),
-            dig_P6=reader.s16(0x98),
-            dig_P7=reader.s16(0x9A),
-            dig_P8=reader.s16(0x9C),
-            dig_P9=reader.s16(0x9E),
-            # Read humidity calibration values.
-            dig_H1=reader.u8(0xA1),
-            dig_H2=reader.s16(0xE1),
-            dig_H3=reader.u8(0xE3),
-            dig_H4=calibration.S16(e4 << 4 | (0x0F & e5)),
-            dig_H5=calibration.S16(e6 << 4 | (0x0F & (e5 >> 4))),
-            dig_H6=reader.s8(0xE7),
-        )
 
     @classmethod
     def _read_config(

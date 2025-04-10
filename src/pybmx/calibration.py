@@ -1,98 +1,124 @@
 import abc
-import ctypes
-import typing as t
-import smbus2 as smbus
 import dataclasses
 
-U8: t.TypeAlias = ctypes.c_uint8
-S8: t.TypeAlias = ctypes.c_int8
-S16: t.TypeAlias = ctypes.c_int16
-U16: t.TypeAlias = ctypes.c_uint16
-S32: t.TypeAlias = ctypes.c_int32
-U32: t.TypeAlias = ctypes.c_uint32
-
-
-class Reader:
-    """Wrap an I2C bus instance to provide a common interface for
-    reading from the bus."""
-
-    def __init__(self, bus: smbus.SMBus, address: int):
-        self._bus = bus
-        self._address = address
-
-    def u16(self, register: int) -> U16:
-        """Read a 16-bit unsigned integer from the bus."""
-        data = self._bus.read_word_data(self._address, register)
-        print(f"Register: {register:#04x}, Data: {data:#06x}")
-        return U16(data)
-
-    def s16(self, register: int) -> S16:
-        """Read a 16-bit signed integer from the bus."""
-        data = self._bus.read_word_data(self._address, register)
-        print(f"Register: {register:#04x}, Data: {data:#06x}")
-        return S16(data)
-
-    def u8(self, register: int) -> U8:
-        """Read an 8-bit unsigned integer from the bus."""
-        data = self._bus.read_byte_data(self._address, register)
-        print(f"Register: {register:#04x}, Data: {data:#04x}")
-        return U8(data)
-
-    def s8(self, register: int) -> S8:
-        """Read an 8-bit signed integer from the bus."""
-        data = self._bus.read_byte_data(self._address, register)
-        print(f"Register: {register:#04x}, Data: {data:#04x}")
-        return S8(data)
+from . import types
+from . import reader as r
 
 
 @dataclasses.dataclass
 class Bme280Calibration:
-    dig_T1: U16
-    dig_T2: S16
-    dig_T3: S16
-    dig_P1: U16
-    dig_P2: S16
-    dig_P3: S16
-    dig_P4: S16
-    dig_P5: S16
-    dig_P6: S16
-    dig_P7: S16
-    dig_P8: S16
-    dig_P9: S16
-    dig_H1: U8
-    dig_H2: S16
-    dig_H3: U8
-    dig_H4: S16
-    dig_H5: S16
-    dig_H6: S8
+    """A dataclass to hold the calibration data for the BME280 sensor."""
+
+    dig_T1: types.U16
+    dig_T2: types.S16
+    dig_T3: types.S16
+    dig_P1: types.U16
+    dig_P2: types.S16
+    dig_P3: types.S16
+    dig_P4: types.S16
+    dig_P5: types.S16
+    dig_P6: types.S16
+    dig_P7: types.S16
+    dig_P8: types.S16
+    dig_P9: types.S16
+    dig_H1: types.U8
+    dig_H2: types.S16
+    dig_H3: types.U8
+    dig_H4: types.S16
+    dig_H5: types.S16
+    dig_H6: types.S8
+
+
+def read(reader: r.Reader) -> Bme280Calibration:
+    """Read calibration from data from reader."""
+    e4 = reader.read_s8(0xE4).value
+    e5 = reader.read_s8(0xE5).value
+    e6 = reader.read_s8(0xE7).value
+    return Bme280Calibration(
+        # Read temperature calibration values.
+        dig_T1=reader.read_u16(0x88),
+        dig_T2=reader.read_s16(0x8A),
+        dig_T3=reader.read_s16(0x8C),
+        # Read pressure calibration values.
+        dig_P1=reader.read_u16(0x8E),
+        dig_P2=reader.read_s16(0x90),
+        dig_P3=reader.read_s16(0x92),
+        dig_P4=reader.read_s16(0x94),
+        dig_P5=reader.read_s16(0x96),
+        dig_P6=reader.read_s16(0x98),
+        dig_P7=reader.read_s16(0x9A),
+        dig_P8=reader.read_s16(0x9C),
+        dig_P9=reader.read_s16(0x9E),
+        # Read humidity calibration values.
+        dig_H1=reader.read_u8(0xA1),
+        dig_H2=reader.read_s16(0xE1),
+        dig_H3=reader.read_u8(0xE3),
+        dig_H4=types.S16(e4 << 4 | (0x0F & e5)),
+        dig_H5=types.S16(e6 << 4 | (0x0F & (e5 >> 4))),
+        dig_H6=reader.read_s8(0xE7),
+    )
 
 
 class Bme280Calibrator(abc.ABC):
+    """Base class for BME280 calibrators. This class defines the
+    interface for the calibration calculation."""
 
     def __init__(self, calibration: Bme280Calibration):
+        """Create a new BME280 calibrator.
+
+        Args:
+            calibration: The calibration data for the BME280 sensor.
+        """
         self._calibration = calibration
 
     @abc.abstractmethod
-    def fine(self, adc: S32) -> float:
-        """Get the fine temperature value."""
+    def fine(self, adc: types.S32) -> float:
+        """Get the fine compensation value."""
         raise NotImplementedError
 
     @abc.abstractmethod
-    def temperature(self, adc: S32) -> float:
+    def temperature(self, adc: types.S32) -> float:
+        """Get the compensated temperature value.
+
+        Args:
+            adc: The raw ADC value for temperature.
+
+        Returns:
+            The temperature value in degrees Celsius.
+        """
         raise NotImplementedError
 
     @abc.abstractmethod
-    def pressure(self, adc: S32, fine: S32) -> float:
+    def pressure(self, adc: types.S32) -> float:
+        """Get the compensated pressure value.
+
+        Args:
+            adc: The raw ADC value for pressure.
+
+        Returns:
+            The pressure value in hPa.
+        """
         raise NotImplementedError
 
     @abc.abstractmethod
-    def humidity(self, adc: S32, fine: S32) -> float:
+    def humidity(self, adc: types.S32) -> float:
+        """Get the compensated humidity value.
+
+        Args:
+            adc: The raw ADC value for humidity.
+
+        Returns:
+            The humidity value in %RH.
+        """
         raise NotImplementedError
 
 
 class Bme280S32Calibrator(Bme280Calibrator):
+    """The BME280 calibrator for 32-bit signed integers. This class
+    implements the calibration calculations using 32-bit signed
+    integers for the ADC values."""
 
-    def temperature(self, adc: S32) -> float:
+    def temperature(self, adc: types.S32) -> float:
         fine = self.fine(adc).value
         adc_val = adc.value
 
@@ -107,7 +133,7 @@ class Bme280S32Calibrator(Bme280Calibrator):
         fine = var2 + var3
         return fine, ((fine * 5 + 128) >> 8) / 100.0
 
-    def pressure(self, adc: S32) -> float:
+    def pressure(self, adc: types.S32) -> float:
         fine = self.fine(adc).value
         adc = adc.value
 
@@ -140,7 +166,7 @@ class Bme280S32Calibrator(Bme280Calibrator):
         # Convert Q24.8 to float.
         return p / 256
 
-    def humidity(self, adc: S32) -> float:
+    def humidity(self, adc: types.S32) -> float:
         fine = self.fine(adc).value
         adc = adc.value
 
@@ -171,8 +197,11 @@ class Bme280S32Calibrator(Bme280Calibrator):
 
 
 class Bme280FCalibrator(Bme280Calibrator):
+    """The BME280 calibrator for 32-bit floating point numbers. This class
+    implements the calibration calculations using 32-bit floating point
+    numbers for the ADC values."""
 
-    def fine(self, adc: S32) -> float:
+    def fine(self, adc: types.S32) -> float:
         adc = float(adc.value)
 
         dig_T1 = self._calibration.dig_T1.value
@@ -184,11 +213,11 @@ class Bme280FCalibrator(Bme280Calibrator):
 
         return var1 + var2
 
-    def temperature(self, adc: S32) -> float:
+    def temperature(self, adc: types.S32) -> float:
         fine = self.fine(adc)
         return fine / 5120.0
 
-    def pressure(self, adc: S32) -> float:
+    def pressure(self, adc: types.S32) -> float:
         fine = self.fine(adc)
         adc = float(adc.value)
 
@@ -220,7 +249,7 @@ class Bme280FCalibrator(Bme280Calibrator):
         p = p + (var1 + var2 + dig_P7) / 16.0
         return p / 100.0
 
-    def humidity(self, adc: S32) -> float:
+    def humidity(self, adc: types.S32) -> float:
         fine = self.fine(adc)
         adc = float(adc.value)
 

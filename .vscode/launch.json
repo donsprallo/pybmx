@@ -8,7 +8,7 @@
             "name": "BME280 Example",
             "type": "debugpy",
             "request": "launch",
-            "module": "pybmx.example"
+            "program": "${workspaceFolder}/examples/bme280.py",
         }
     ]
 }
