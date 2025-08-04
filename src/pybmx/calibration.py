@@ -119,25 +119,25 @@ class Bme280S32Calibrator(Bme280Calibrator):
     integers for the ADC values."""
 
     def fine(self, adc: types.S32) -> float:
-        adc = adc.value
+        _adc = adc.value
 
         dig_T1 = self._calibration.dig_T1.value
         dig_T2 = self._calibration.dig_T2.value
         dig_T3 = self._calibration.dig_T3.value
 
-        var1 = (adc >> 4) - dig_T1
-        var2 = ((((adc >> 3) - (dig_T1 << 1))) * dig_T2) >> 11
+        var1 = (_adc >> 4) - dig_T1
+        var2 = ((((_adc >> 3) - (dig_T1 << 1))) * dig_T2) >> 11
         var3 = (((var1 * var1) >> 12) * dig_T3) >> 14
 
         return var2 + var3
 
     def temperature(self, adc: types.S32) -> float:
-        fine = types.S32(self.fine(adc)).value
+        fine = types.S32(int(self.fine(adc))).value
         return ((fine * 5 + 128) >> 8) / 100.0
 
     def pressure(self, adc: types.S32) -> float:
-        fine = types.S32(self.fine(adc)).value
-        adc = adc.value
+        fine = types.S32(int(self.fine(adc))).value
+        _adc = adc.value
 
         dig_P1 = self._calibration.dig_P1.value
         dig_P2 = self._calibration.dig_P2.value
@@ -162,7 +162,7 @@ class Bme280S32Calibrator(Bme280Calibrator):
         if var1 == 0:
             return 0.0
 
-        p = 1048576 - adc
+        p = 1048576 - _adc
         p = (((p << 31) - var2) * 3125) // var1
         var1 = (dig_P9 * ((p >> 13) ** 2)) >> 25
         var2 = (dig_P8 * p) >> 19
@@ -172,8 +172,8 @@ class Bme280S32Calibrator(Bme280Calibrator):
         return p / 100.0
 
     def humidity(self, adc: types.S32) -> float:
-        fine = types.S32(self.fine(adc)).value
-        adc = adc.value
+        fine = types.S32(int(self.fine(adc))).value
+        _adc = adc.value
 
         dig_H1 = self._calibration.dig_H1.value
         dig_H2 = self._calibration.dig_H2.value
@@ -184,7 +184,7 @@ class Bme280S32Calibrator(Bme280Calibrator):
 
         v_x1_u32r = fine - 76800
 
-        var1 = (adc << 14) - (dig_H4 << 20) - (dig_H5 * v_x1_u32r)
+        var1 = (_adc << 14) - (dig_H4 << 20) - (dig_H5 * v_x1_u32r)
         var2 = (var1 + 16384) >> 15
         var3 = (v_x1_u32r * dig_H6) >> 10
         var4 = ((v_x1_u32r * dig_H3) >> 11) + 32768
@@ -206,14 +206,14 @@ class Bme280FCalibrator(Bme280Calibrator):
     numbers for the ADC values."""
 
     def fine(self, adc: types.S32) -> float:
-        adc = float(adc.value)
+        _adc = float(adc.value)
 
         dig_T1 = self._calibration.dig_T1.value
         dig_T2 = self._calibration.dig_T2.value
         dig_T3 = self._calibration.dig_T3.value
 
-        var1 = (adc / 16384.0 - dig_T1 / 1024.0) * dig_T2
-        var2 = ((adc / 131072.0 - dig_T1 / 8192.0) ** 2) * dig_T3
+        var1 = (_adc / 16384.0 - dig_T1 / 1024.0) * dig_T2
+        var2 = ((_adc / 131072.0 - dig_T1 / 8192.0) ** 2) * dig_T3
 
         return var1 + var2
 
@@ -223,7 +223,7 @@ class Bme280FCalibrator(Bme280Calibrator):
 
     def pressure(self, adc: types.S32) -> float:
         fine = self.fine(adc)
-        adc = float(adc.value)
+        _adc = float(adc.value)
 
         dig_P1 = self._calibration.dig_P1.value
         dig_P2 = self._calibration.dig_P2.value
@@ -247,7 +247,7 @@ class Bme280FCalibrator(Bme280Calibrator):
         if var1 == 0:
             return 0.0
 
-        p = 1048576.0 - adc
+        p = 1048576.0 - _adc
         p = ((p - var2 / 4096.0)) * 6250.0 / var1
         var1 = dig_P9 * p * p / 2147483648.0
         var2 = p * dig_P8 / 32768.0
@@ -256,7 +256,7 @@ class Bme280FCalibrator(Bme280Calibrator):
 
     def humidity(self, adc: types.S32) -> float:
         fine = self.fine(adc)
-        adc = float(adc.value)
+        _adc = float(adc.value)
 
         dig_H1 = self._calibration.dig_H1.value
         dig_H2 = self._calibration.dig_H2.value
@@ -269,7 +269,7 @@ class Bme280FCalibrator(Bme280Calibrator):
         var2 = dig_H4 * 64.0 + dig_H5 / 16384.0 * var1
         var3 = 1.0 + dig_H3 / 67108864.0 * var1
         var4 = 1.0 + dig_H6 / 67108864.0 * var1 * var3
-        var1 = (adc - var2) * (dig_H2 / 65536.0 * var4)
+        var1 = (_adc - var2) * (dig_H2 / 65536.0 * var4)
         var1 = var1 * (1.0 - (dig_H1 * var1 / 524288.0))
 
         return max(0.0, min(var1, 100.0))
