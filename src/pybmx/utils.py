@@ -23,13 +23,22 @@ def hex_dump(data: bytes | bytearray, width: int = 16, addr: int = 0) -> str:
     if not isinstance(data, (bytes, bytearray)):
         raise TypeError("Invalid type")
 
-    header = "Offset    " + " ".join(f"{i:02X}" for i in range(width)) + "  |ASCII|"
+    header = (
+        "Offset    " + " ".join(f"{i:02X}" for i in range(width)) + "  |ASCII|"
+    )
     lines = [header, "-" * len(header)]
 
     for offset in range(0, len(data), width):
         chunk = data[offset : offset + width]
         hex_bytes = " ".join(f"{byte:02X}" for byte in chunk)
         hex_bytes = hex_bytes.ljust(width * 3)
-        ascii_repr = "".join(chr(byte) if 32 <= byte <= 126 else "." for byte in chunk)
+        ascii_repr = "".join(
+            chr(byte) if 32 <= byte <= 126 else "." for byte in chunk
+        )
         lines.append(f"{addr + offset:08X}  {hex_bytes} |{ascii_repr}|")
     return "\n".join(lines)
+
+
+def in_range(value: float, values: t.Tuple[float, float]) -> bool:
+    """Check if a value is within a specified range."""
+    return values[0] <= value <= values[1]

@@ -12,15 +12,7 @@ from . import utils
 from . import io
 from . import types
 from . import calibration
-
-I2C_SMBUS_BLOCK_MAX = 32
-"""Maximum size of readable data bytes per read."""
-
-BME280_DEVICE_ID = 0x60
-"""The known device id."""
-
-BME280_DEVICE_ADDRESSES = (0x77, 0x76)
-"""Allowed device addresses."""
+from . import errors
 
 
 class Bme280DataRegisterMap(ctypes.Structure):
@@ -72,6 +64,22 @@ class BmeDatapoint:
 
 class Bme280:
 
+    DEVICE_ID = 0x60
+    """The known device id."""
+
+    DEVICE_ADDRESSES = (0x77, 0x76)
+    """Allowed device addresses."""
+
+    TEMPERATURE_RANGE = (-40.0, 85.0)
+    """The allowed temperature range in degrees Celsius."""
+
+    # TODO: should be 900 .. 1100 but some sensors report values below 900
+    PRESSURE_RANGE = (300.0, 1100.0)
+    """The allowed pressure range in hPa."""
+
+    HUMIDITY_RANGE = (10.0, 90.0)
+    """The allowed humidity range in %RH."""
+
     def __init__(
         self,
         bus: smbus.SMBus,
@@ -90,7 +98,7 @@ class Bme280:
         Raises:
             ValueError when addr is not 0x76 or 0x77.
         """
-        if addr not in BME280_DEVICE_ADDRESSES:
+        if addr not in self.DEVICE_ADDRESSES:
             raise ValueError("invalid address")
 
         self._bus = bus
@@ -99,8 +107,8 @@ class Bme280:
         self.reset()
 
         self._id = self._read_id(self._bus, self._addr)
-        if self._id != BME280_DEVICE_ID:
-            raise ValueError("unknown device")
+        if self._id != self.DEVICE_ID:
+            raise errors.WrongDeviceError("BME280", self.DEVICE_ID, self._id)
 
         self._calibration = calibration.read(io.Reader(bus, addr))
         self._config = self._read_config(self._bus, self._addr)
@@ -270,6 +278,15 @@ class Bme280:
         temperature = calibrator.temperature(data.temperature)
         pressure = calibrator.pressure(data.pressure)
         humidity = calibrator.humidity(data.humidity)
+        # Validate the calculated values.
+        if not utils.in_range(temperature, self.TEMPERATURE_RANGE):
+            raise errors.ImplausibleDataError(
+                temperature, self.TEMPERATURE_RANGE
+            )
+        if not utils.in_range(pressure, self.PRESSURE_RANGE):
+            raise errors.ImplausibleDataError(pressure, self.PRESSURE_RANGE)
+        if not utils.in_range(humidity, self.HUMIDITY_RANGE):
+            raise errors.ImplausibleDataError(humidity, self.HUMIDITY_RANGE)
         # Return data transfer object with timestamp and
         # previously calculated real data.
         return BmeDatapoint(
