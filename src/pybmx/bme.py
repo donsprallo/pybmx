@@ -115,6 +115,7 @@ class Bme280:
 
     def reset(self) -> None:
         self._bus.write_byte_data(self._addr, 0xE0, 0xB6)
+        time.sleep(0.1)  # wait for device to reset
 
     def update(self) -> None:
         self._write_config(self._bus, self._addr, self._config)
