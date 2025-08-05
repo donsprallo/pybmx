@@ -33,7 +33,7 @@ def read(reader: io.Reader) -> Bme280Calibration:
     """Read calibration from data from reader."""
     e4 = reader.read_s8(0xE4).value
     e5 = reader.read_s8(0xE5).value
-    e6 = reader.read_s8(0xE7).value
+    e6 = reader.read_s8(0xE6).value
     return Bme280Calibration(
         # Read temperature calibration values.
         dig_T1=reader.read_u16(0x88),
@@ -53,8 +53,8 @@ def read(reader: io.Reader) -> Bme280Calibration:
         dig_H1=reader.read_u8(0xA1),
         dig_H2=reader.read_s16(0xE1),
         dig_H3=reader.read_u8(0xE3),
-        dig_H4=types.S16(e4 << 4 | (0x0F & e5)),
-        dig_H5=types.S16(e6 << 4 | (0x0F & (e5 >> 4))),
+        dig_H4=types.S16((e4 << 4) | (e5 & 0x0F)),
+        dig_H5=types.S16((e6 << 4) | (e5 >> 4)),
         dig_H6=reader.read_s8(0xE7),
     )
 
